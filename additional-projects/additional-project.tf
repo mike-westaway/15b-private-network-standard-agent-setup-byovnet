@@ -57,6 +57,73 @@ resource "azurerm_storage_container" "project_container" {
   container_access_type = "private"
 }
 
+## Create dedicated AI Search indexes for each project
+##
+resource "azapi_resource" "project_search_index" {
+  for_each = local.projects
+  
+  provider = azapi.workload_subscription
+
+  type      = "Microsoft.Search/searchServices/indexes@2024-07-01"
+  name      = "${each.value}-index"
+  parent_id = data.azapi_resource.ai_search.id
+
+  body = {
+    properties = {
+      fields = [
+        {
+          name       = "id"
+          type       = "Edm.String"
+          key        = true
+          searchable = false
+          filterable = false
+          sortable   = false
+          facetable  = false
+        },
+        {
+          name       = "content"
+          type       = "Edm.String"
+          searchable = true
+          filterable = false
+          sortable   = false
+          facetable  = false
+        },
+        {
+          name       = "content_vector"
+          type       = "Collection(Edm.Single)"
+          searchable = true
+          dimensions = 1536
+          vectorSearchProfile = "vector-profile"
+        },
+        {
+          name       = "metadata"
+          type       = "Edm.String"
+          searchable = false
+          filterable = true
+          sortable   = false
+          facetable  = false
+        }
+      ]
+      vectorSearch = {
+        algorithms = [
+          {
+            name = "vector-algorithm"
+            kind = "hnsw"
+          }
+        ]
+        profiles = [
+          {
+            name      = "vector-profile"
+            algorithm = "vector-algorithm"
+          }
+        ]
+      }
+    }
+  }
+
+  schema_validation_enabled = false
+}
+
 ## Create AI Foundry project connections
 ##
 resource "azapi_resource" "conn_cosmosdb" {
@@ -190,31 +257,33 @@ resource "azurerm_role_assignment" "storage_blob_data_contributor_project_contai
   principal_id         = azapi_resource.ai_foundry_project[each.key].output.identity.principalId
 }
 
-resource "azurerm_role_assignment" "search_index_data_contributor_ai_foundry_project" {
+resource "azurerm_role_assignment" "search_index_data_contributor_project_index" {
   for_each = local.projects
   
   provider = azurerm.workload_subscription
 
   depends_on = [
-    resource.time_sleep.wait_project_identities
+    resource.time_sleep.wait_project_identities,
+    azapi_resource.project_search_index
   ]
-  name                 = uuidv5("dns", "${azapi_resource.ai_foundry_project[each.key].name}${azapi_resource.ai_foundry_project[each.key].output.identity.principalId}${data.azapi_resource.ai_search.name}searchindexdatacontributor")
-  scope                = data.azapi_resource.ai_search.id
+  name                 = uuidv5("dns", "${azapi_resource.ai_foundry_project[each.key].name}${azapi_resource.ai_foundry_project[each.key].output.identity.principalId}${azapi_resource.project_search_index[each.key].name}indexdatacontributor")
+  scope                = azapi_resource.project_search_index[each.key].id
   role_definition_name = "Search Index Data Contributor"
   principal_id         = azapi_resource.ai_foundry_project[each.key].output.identity.principalId
 }
 
-resource "azurerm_role_assignment" "search_service_contributor_ai_foundry_project" {
+resource "azurerm_role_assignment" "search_index_data_reader_project_index" {
   for_each = local.projects
   
   provider = azurerm.workload_subscription
 
   depends_on = [
-    resource.time_sleep.wait_project_identities
+    resource.time_sleep.wait_project_identities,
+    azapi_resource.project_search_index
   ]
-  name                 = uuidv5("dns", "${azapi_resource.ai_foundry_project[each.key].name}${azapi_resource.ai_foundry_project[each.key].output.identity.principalId}${data.azapi_resource.ai_search.name}searchservicecontributor")
-  scope                = data.azapi_resource.ai_search.id
-  role_definition_name = "Search Service Contributor"
+  name                 = uuidv5("dns", "${azapi_resource.ai_foundry_project[each.key].name}${azapi_resource.ai_foundry_project[each.key].output.identity.principalId}${azapi_resource.project_search_index[each.key].name}indexdatareader")
+  scope                = azapi_resource.project_search_index[each.key].id
+  role_definition_name = "Search Index Data Reader"
   principal_id         = azapi_resource.ai_foundry_project[each.key].output.identity.principalId
 }
 
@@ -225,9 +294,9 @@ resource "time_sleep" "wait_rbac" {
   
   depends_on = [
     azurerm_role_assignment.cosmosdb_operator_ai_foundry_project,
-    azurerm_role_assignment.storage_blob_data_contributor_ai_foundry_project,
-    azurerm_role_assignment.search_index_data_contributor_ai_foundry_project,
-    azurerm_role_assignment.search_service_contributor_ai_foundry_project
+    azurerm_role_assignment.storage_blob_data_contributor_project_container,
+    azurerm_role_assignment.search_index_data_contributor_project_index,
+    azurerm_role_assignment.search_index_data_reader_project_index
   ]
   create_duration = "60s"
 }

@@ -38,6 +38,7 @@ output "project_details" {
       principal_id      = project.output.identity.principalId
       project_id_guid   = local.project_id_guids[name]
       storage_container = azurerm_storage_container.project_container[name].name
+      search_index      = azapi_resource.project_search_index[name].name
     }
   }
 }
@@ -46,5 +47,12 @@ output "storage_containers" {
   description = "Map of project names to their dedicated storage container names"
   value = {
     for name, container in azurerm_storage_container.project_container : name => container.name
+  }
+}
+
+output "search_indexes" {
+  description = "Map of project names to their dedicated AI Search index names"
+  value = {
+    for name, index in azapi_resource.project_search_index : name => index.name
   }
 }

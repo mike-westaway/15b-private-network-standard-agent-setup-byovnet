@@ -75,8 +75,10 @@ terraform apply
 For each project name in the list, Terraform creates:
 - An AI Foundry project under the existing hub
 - **A dedicated storage container** for the project (named `{project-name}-container`)
+- **A dedicated AI Search index** for the project (named `{project-name}-index`)
 - Project connections to the existing Storage Account, Cosmos DB, and AI Search
 - **Container-level RBAC assignments** for secure storage isolation
+- **Index-level RBAC assignments** for secure AI Search isolation
 - Role assignments for the project's managed identity at the appropriate scope
 - A capability host for AI agents
 - Cosmos DB role assignments for the project-specific collections
@@ -87,14 +89,19 @@ Each project is securely isolated through:
 - **Storage isolation**: Each project has its own dedicated container with RBAC scoped at the container level
   - Only the project's managed identity can access its specific container
   - Projects cannot access each other's containers
+- **AI Search isolation**: Each project has its own dedicated index with RBAC scoped at the index level
+  - Only the project's managed identity can read/write to its specific index
+  - Projects cannot access each other's indexes
+  - Includes both read and write permissions at the index level
 - **Cosmos DB isolation**: Each project gets its own collections within the shared Cosmos DB
-- **AI Search isolation**: Role-based access control ensures projects only access their own indexes
+  - Role-based access control ensures project-specific data access
 
 ## Notes
 
 - This directory has its own Terraform state, separate from the main deployment in `../code/`
 - All projects share the existing infrastructure resources (Storage Account, Cosmos DB, AI Search)
-- Each project gets its own dedicated storage container for complete data isolation
-- Container-level RBAC ensures projects cannot access each other's storage data
+- Each project gets its own dedicated storage container and AI Search index for complete data isolation
+- Container-level and index-level RBAC ensures projects cannot access each other's data
 - Cosmos DB collections are project-specific and isolated through RBAC
 - Project names must be unique and follow Azure naming conventions
+- Search indexes are created with a default schema suitable for vector embeddings (1536 dimensions)
