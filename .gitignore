@@ -1,3 +1,11 @@
+# Terraform files
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+*.tfvars
+
+# Specific overrides if needed
 code/terraform.tfvars
 code/.terraform/
 code/.terraform.lock.hcl
