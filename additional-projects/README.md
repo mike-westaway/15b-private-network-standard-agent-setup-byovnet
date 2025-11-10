@@ -74,15 +74,27 @@ terraform apply
 
 For each project name in the list, Terraform creates:
 - An AI Foundry project under the existing hub
+- **A dedicated storage container** for the project (named `{project-name}-container`)
 - Project connections to the existing Storage Account, Cosmos DB, and AI Search
-- Role assignments for the project's managed identity
+- **Container-level RBAC assignments** for secure storage isolation
+- Role assignments for the project's managed identity at the appropriate scope
 - A capability host for AI agents
 - Cosmos DB role assignments for the project-specific collections
+
+## Security & Isolation
+
+Each project is securely isolated through:
+- **Storage isolation**: Each project has its own dedicated container with RBAC scoped at the container level
+  - Only the project's managed identity can access its specific container
+  - Projects cannot access each other's containers
+- **Cosmos DB isolation**: Each project gets its own collections within the shared Cosmos DB
+- **AI Search isolation**: Role-based access control ensures projects only access their own indexes
 
 ## Notes
 
 - This directory has its own Terraform state, separate from the main deployment in `../code/`
-- All projects share the existing infrastructure resources (Storage, Cosmos DB, AI Search)
-- Each project gets its own containers/collections within the shared resources
-- Projects are isolated at the data plane level through role-based access controls
+- All projects share the existing infrastructure resources (Storage Account, Cosmos DB, AI Search)
+- Each project gets its own dedicated storage container for complete data isolation
+- Container-level RBAC ensures projects cannot access each other's storage data
+- Cosmos DB collections are project-specific and isolated through RBAC
 - Project names must be unique and follow Azure naming conventions

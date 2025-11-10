@@ -45,6 +45,18 @@ resource "time_sleep" "wait_project_identities" {
   create_duration = "10s"
 }
 
+## Create dedicated storage containers for each project
+##
+resource "azurerm_storage_container" "project_container" {
+  for_each = local.projects
+  
+  provider = azurerm.workload_subscription
+  
+  name                  = "${each.value}-container"
+  storage_account_id    = data.azurerm_storage_account.storage_account.id
+  container_access_type = "private"
+}
+
 ## Create AI Foundry project connections
 ##
 resource "azapi_resource" "conn_cosmosdb" {
@@ -163,16 +175,17 @@ resource "azurerm_role_assignment" "cosmosdb_operator_ai_foundry_project" {
   principal_id         = azapi_resource.ai_foundry_project[each.key].output.identity.principalId
 }
 
-resource "azurerm_role_assignment" "storage_blob_data_contributor_ai_foundry_project" {
+resource "azurerm_role_assignment" "storage_blob_data_contributor_project_container" {
   for_each = local.projects
   
   provider = azurerm.workload_subscription
 
   depends_on = [
-    resource.time_sleep.wait_project_identities
+    resource.time_sleep.wait_project_identities,
+    azurerm_storage_container.project_container
   ]
-  name                 = uuidv5("dns", "${azapi_resource.ai_foundry_project[each.key].name}${azapi_resource.ai_foundry_project[each.key].output.identity.principalId}${data.azurerm_storage_account.storage_account.name}storageblobdatacontributor")
-  scope                = data.azurerm_storage_account.storage_account.id
+  name                 = uuidv5("dns", "${azapi_resource.ai_foundry_project[each.key].name}${azapi_resource.ai_foundry_project[each.key].output.identity.principalId}${azurerm_storage_container.project_container[each.key].name}containerblobdatacontributor")
+  scope                = azurerm_storage_container.project_container[each.key].resource_manager_id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azapi_resource.ai_foundry_project[each.key].output.identity.principalId
 }
@@ -303,31 +316,19 @@ resource "azurerm_cosmosdb_sql_role_assignment" "cosmosdb_db_sql_role_aifp_entit
   principal_id        = azapi_resource.ai_foundry_project[each.key].output.identity.principalId
 }
 
-## Create the necessary data plane role assignments to the Azure Storage Account containers created by the AI Foundry Project
+## Create the necessary data plane role assignments to the project-specific storage containers
 ##
-resource "azurerm_role_assignment" "storage_blob_data_owner_ai_foundry_project" {
+resource "azurerm_role_assignment" "storage_blob_data_owner_project_container" {
   for_each = local.projects
   
   provider = azurerm.workload_subscription
 
   depends_on = [
-    azapi_resource.ai_foundry_project_capability_host
+    azapi_resource.ai_foundry_project_capability_host,
+    azurerm_storage_container.project_container
   ]
-  name                 = uuidv5("dns", "${azapi_resource.ai_foundry_project[each.key].name}${azapi_resource.ai_foundry_project[each.key].output.identity.principalId}${data.azurerm_storage_account.storage_account.name}storageblobdataowner")
-  scope                = data.azurerm_storage_account.storage_account.id
+  name                 = uuidv5("dns", "${azapi_resource.ai_foundry_project[each.key].name}${azapi_resource.ai_foundry_project[each.key].output.identity.principalId}${azurerm_storage_container.project_container[each.key].name}containerblobdataowner")
+  scope                = azurerm_storage_container.project_container[each.key].resource_manager_id
   role_definition_name = "Storage Blob Data Owner"
   principal_id         = azapi_resource.ai_foundry_project[each.key].output.identity.principalId
-  condition_version    = "2.0"
-  condition            = <<-EOT
-  (
-    (
-      !(ActionMatches{'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags/read'})
-      AND !(ActionMatches{'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/filter/action'})
-      AND !(ActionMatches{'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags/write'})
-    )
-    OR
-    (@Resource[Microsoft.Storage/storageAccounts/blobServices/containers:name] StringStartsWithIgnoreCase '${local.project_id_guids[each.key]}'
-    AND @Resource[Microsoft.Storage/storageAccounts/blobServices/containers:name] StringLikeIgnoreCase '*-azureml-agent')
-  )
-  EOT
 }
