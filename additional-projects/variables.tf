@@ -32,3 +32,29 @@ variable "location" {
   description = "The name of the location to provision the resources to"
   type        = string
 }
+
+variable "storage_account_id" {
+  description = "The resource ID of the existing Storage Account to use for the project"
+  type        = string
+}
+
+variable "cosmosdb_account_id" {
+  description = "The resource ID of the existing Cosmos DB Account to use for the project"
+  type        = string
+}
+
+variable "ai_search_id" {
+  description = "The resource ID of the existing AI Search service to use for the project"
+  type        = string
+}
+
+variable "ai_foundry_id" {
+  description = "The resource ID of the existing AI Foundry hub to create the project under"
+  type        = string
+}
+
+variable "project_names" {
+  description = "List of project names to create. Each name will be used to create a separate AI Foundry project."
+  type        = list(string)
+  default     = []
+}
