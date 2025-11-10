@@ -1,4 +1,6 @@
 code/terraform.tfvars
+code/.terraform/
+code/.terraform.lock.hcl
 additional-projects/terraform.tfvars
 additional-projects/.terraform/
 additional-projects/.terraform.lock.hcl
